@@ -1,6 +1,7 @@
 library firebase_cloud_firestore;
 
 export 'package:cloud_firestore/cloud_firestore.dart';
+export 'package:object/object.dart';
 
 export 'src/extensions/collection_ext.dart';
 export 'src/extensions/collection_group_ext.dart';

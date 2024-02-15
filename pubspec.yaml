@@ -11,12 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cloud_firestore: ^4.15.4                      # android   ios           macos   web
+  object: ^1.0.0                                # android   ios   linux   macos   web   windows
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  cloud_firestore: ^4.15.4                      # android   ios           macos   web
   flutter_lints: ^3.0.1
-  object: ^1.0.0                                # android   ios   linux   macos   web   windows
 
 flutter:
