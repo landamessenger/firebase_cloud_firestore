@@ -66,10 +66,14 @@ final chatDocument = FirebaseFirestore.instance.collection('chats').doc('chat_id
 #### Get
 
 ```dart
-Chat chat = await chatDocument.get<Chat>();
+Chat chat = await chatDocument.get();
 ```
 
-#### Observe
+```dart
+final chat = await chatDocument.get<Chat>();
+```
+
+#### Listen
 
 ```dart
 chatDocument?.listen<Chat>(
@@ -82,6 +86,16 @@ chatDocument?.listen<Chat>(
         refresh();
     },
 );
+```
+
+You can pause, resume and cancel the listen action at any moment:
+
+```dart
+chatDocument.pause();
+
+chatDocument.resume();
+
+await chatDocument.cancel();
 ```
 
 ### Collections
@@ -97,17 +111,21 @@ final chatsCollection = Collection(
       arrayContains: 'your_logged_user_id',
     )
     .orderBy('lastChange', descending: true)
-    .limit(10),
+    .limit(10), // Necessary if you want to paginate the query
 );
 ```
 
 #### Get
 
 ```dart
-List<Chat> chats = await chatsCollection.get<Chat>();
+List<Chat> chats = await chatsCollection.get();
 ```
 
-#### Observe
+```dart
+final chats = await chatsCollection.get<Chat>();
+```
+
+#### Listen
 
 ```dart
 chatsCollection.listen<Chat>(
@@ -116,6 +134,16 @@ chatsCollection.listen<Chat>(
     refresh();
   },
 );
+```
+
+You can pause, resume and cancel the listen action at any moment:
+
+```dart
+chatsCollection.pause();
+
+chatsCollection.resume();
+
+await chatsCollection.cancel();
 ```
 
 #### Pagination
@@ -128,4 +156,55 @@ chatsCollection?.next<Chat>(
     refresh();
   },
 );
+```
+
+#### Collection Group
+
+You can also get/listen from collection groups.
+
+```dart
+final chatsCollection = CollectionGroup(
+  reference: FirebaseFirestore.instance.collectionGroup('chats'),
+  query: (query) => query
+    .where(
+      'member',
+      arrayContains: 'your_logged_user_id',
+    )
+    .orderBy('lastChange', descending: true)
+    .limit(10), // Necessary if you want to paginate the query
+);
+```
+
+### Scope
+
+By default the scope of your queries and listens will be general which is not recommended if you pretend to use the same type of query in different points of the app in an efficient way.
+
+Scopes offer different methods to change the status of your listeners:
+
+```dart
+FirestoreManager().pauseAll();
+
+FirestoreManager().resumeAll();
+
+await FirestoreManager().cancelAll();
+```
+
+The above example uses a general scope (a singleton) but we recommend using `FirestoreViewModel` scopes.
+
+```dart
+final viewModel = FirestoreViewModel();
+
+chatsCollection.listen<Chat>(
+  viewModel: viewModel,
+  results: (Map<String, Chat> chats) async {
+    state.chats = chats;
+    refresh();
+  },
+);
+
+viewModel.pauseAll();
+
+viewModel.resumeAll();
+
+viewModel.cancelAll();
 ```

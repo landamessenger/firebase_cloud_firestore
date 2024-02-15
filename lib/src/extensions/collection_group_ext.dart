@@ -1,12 +1,12 @@
 import 'package:object/object.dart' as object;
 
 import '../fire/collection_group.dart';
-import '../firestore_singleton.dart';
+import '../firestore_manager.dart';
 import '../firestore_view_model.dart';
 
 extension CollectionGroupExt on CollectionGroup {
   Future<List<T>> get<T extends object.Object<T>>() =>
-      FirestoreSingleton().getCollectionGroup<T>(
+      FirestoreManager().getCollectionGroup<T>(
         reference: reference,
         query: query,
       );
@@ -19,7 +19,7 @@ extension CollectionGroupExt on CollectionGroup {
     Future Function()? emptyCallback,
   }) {
     final map = <String, T>{};
-    (viewModel ?? FirestoreSingleton()).listenCollectionGroup<T>(
+    (viewModel ?? FirestoreManager()).listenCollectionGroup<T>(
       reference: reference,
       query: query,
       callback: (List<T> instances) async {
@@ -53,10 +53,34 @@ extension CollectionGroupExt on CollectionGroup {
     FirestoreViewModel? viewModel,
     Function()? noMore,
   }) {
-    (viewModel ?? FirestoreSingleton()).increaseLimitGroupReference<T>(
+    (viewModel ?? FirestoreManager()).increaseLimitGroupReference<T>(
       reference: reference,
       query: query,
       noMore: noMore ?? () {},
     );
   }
+
+  void resume({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).resumeCollectionGroup(
+        reference: reference,
+        query: query,
+      );
+
+  void pause({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).pauseCollectionGroup(
+        reference: reference,
+        query: query,
+      );
+
+  void cancel({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).cancelCollectionGroup(
+        reference: reference,
+        query: query,
+      );
 }

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('adds one to input values', () {
-    final fo = FirestoreSingleton();
+    final fo = FirestoreManager();
     expect(fo.pathIndexed.isEmpty, true);
     expect(fo.collectionsSub.isEmpty, true);
     expect(fo.documentsSub.isEmpty, true);

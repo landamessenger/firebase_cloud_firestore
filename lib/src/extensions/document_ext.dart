@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:object/object.dart' as object;
 
 import '../fire/document.dart';
-import '../firestore_singleton.dart';
+import '../firestore_manager.dart';
 import '../firestore_view_model.dart';
 
 extension DocumentReferenceExt on DocumentReference {
@@ -11,7 +11,7 @@ extension DocumentReferenceExt on DocumentReference {
 
 extension DocumentExt on Document {
   Future<T?> get<T extends object.Object<T>>() {
-    return FirestoreSingleton().getDocument<T>(reference);
+    return FirestoreManager().getDocument<T>(reference);
   }
 
   void listen<T extends object.Object<T>>({
@@ -19,10 +19,25 @@ extension DocumentExt on Document {
     Future Function(T)? callback,
     Future Function()? notExistCallback,
   }) {
-    (viewModel ?? FirestoreSingleton()).listenDocument<T>(
+    (viewModel ?? FirestoreManager()).listenDocument<T>(
       reference: reference,
       callback: callback,
       notExistCallback: notExistCallback,
     );
   }
+
+  void resume({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).resumeDocument(reference: reference);
+
+  void pause({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).pauseDocument(reference: reference);
+
+  void cancel({
+    FirestoreViewModel? viewModel,
+  }) =>
+      (viewModel ?? FirestoreManager()).cancelDocument(reference: reference);
 }

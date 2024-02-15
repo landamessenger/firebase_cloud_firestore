@@ -347,6 +347,44 @@ class FirestoreViewModel {
         (indexed ? '${fireQuery.index}' : '');
   }
 
+  void resumeDocument({required DocumentReference reference}) {
+    documentsSub[_docPath(reference)]?.resume();
+  }
+
+  void resumeCollection({
+    required CollectionReference reference,
+    Query<Object?> Function(CollectionReference)? query,
+  }) {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    _resumeCollection(fireQuery: fireQuery);
+  }
+
+  void resumeCollectionGroup({
+    required Query reference,
+    Query<Object?> Function(Query)? query,
+  }) async {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    _resumeCollection(fireQuery: fireQuery);
+  }
+
+  void _resumeCollection({
+    required FireQuery fireQuery,
+  }) {
+    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
+    for (var i = 0; i <= indexes; i++) {
+      fireQuery.index = i;
+      collectionsSub[_colPath(fireQuery)]?.resume();
+    }
+  }
+
   void resumeAll() async {
     var docIds = [];
     docIds.addAll(documentsSub.keys.toList());
@@ -371,6 +409,44 @@ class FirestoreViewModel {
     }
   }
 
+  void pauseDocument({required DocumentReference reference}) {
+    documentsSub[_docPath(reference)]?.pause();
+  }
+
+  void pauseCollection({
+    required CollectionReference reference,
+    Query<Object?> Function(CollectionReference)? query,
+  }) {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    _pauseCollection(fireQuery: fireQuery);
+  }
+
+  void pauseCollectionGroup({
+    required Query reference,
+    Query<Object?> Function(Query)? query,
+  }) {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    _pauseCollection(fireQuery: fireQuery);
+  }
+
+  void _pauseCollection({
+    required FireQuery fireQuery,
+  }) {
+    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
+    for (var i = 0; i <= indexes; i++) {
+      fireQuery.index = i;
+      collectionsSub[_colPath(fireQuery)]?.pause();
+    }
+  }
+
   void pauseAll() async {
     var docIds = [];
     docIds.addAll(documentsSub.keys.toList());
@@ -392,6 +468,44 @@ class FirestoreViewModel {
           print('Pausing collection reference: $colPath');
         }
       }
+    }
+  }
+
+  Future<void> cancelDocument({required DocumentReference reference}) async {
+    await documentsSub[_docPath(reference)]?.cancel();
+  }
+
+  Future<void> cancelCollection({
+    required CollectionReference reference,
+    Query<Object?> Function(CollectionReference)? query,
+  }) async {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    await _cancelCollection(fireQuery: fireQuery);
+  }
+
+  Future<void> cancelCollectionGroup({
+    required Query reference,
+    Query<Object?> Function(Query)? query,
+  }) async {
+    final q = query == null ? reference : query(reference);
+    final fireQuery = FireQuery(
+      '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+    );
+    await _cancelCollection(fireQuery: fireQuery);
+  }
+
+  Future<void> _cancelCollection({
+    required FireQuery fireQuery,
+  }) async {
+    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
+    for (var i = 0; i <= indexes; i++) {
+      fireQuery.index = i;
+      await collectionsSub[_colPath(fireQuery)]?.cancel();
     }
   }
 
