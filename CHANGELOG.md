@@ -1,6 +1,6 @@
-## 4.15.5
+## 4.15.6
 
-* Updated `object` version to `1.0.1`.
+* Updated `object` version to `1.0.2`.
 
 ## 4.15.4
 
