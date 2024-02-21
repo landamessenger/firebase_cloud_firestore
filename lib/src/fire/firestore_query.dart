@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class FireQuery {
+class FirestoreQuery {
+
+  bool group;
+
   String path;
 
   Query<Object?> query;
 
-  int index = 0;
-
-  FireQuery(this.path, this.query);
+  FirestoreQuery(this.path, this.query, this.group);
 }

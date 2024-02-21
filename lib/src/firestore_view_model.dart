@@ -1,22 +1,18 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_cloud_firestore/src/extensions/query_ext.dart';
 import 'package:flutter/foundation.dart';
 import 'package:object/object.dart' as object;
 
+import 'fire/constants.dart';
+import 'fire/firestore_collection_manager.dart';
+import 'fire/firestore_document_manager.dart';
 import 'fire/firestore_query.dart';
-import 'fire/query_reaction.dart';
-import 'fire/reaction.dart';
 
 class FirestoreViewModel {
-  Map<String, ObservableReaction<dynamic>> documentsSub =
-      <String, ObservableReaction<dynamic>>{};
-  Map<String, ObservableQueryReaction<dynamic>> collectionsSub =
-      <String, ObservableQueryReaction<dynamic>>{};
-
-  final pathIndexed = <String, int>{};
-
-  final limited = <String>[];
+  final documents = <String, FirestoreDocumentManager>{};
+  final collections = <String, FirestoreCollectionManager>{};
 
   FirestoreViewModel();
 
@@ -32,7 +28,7 @@ class FirestoreViewModel {
       }
     } catch (e) {
       if (kDebugMode) {
-        print(e);
+        print('🔥 $e');
       }
     }
     return null;
@@ -83,7 +79,7 @@ class FirestoreViewModel {
       }
     } catch (e) {
       if (kDebugMode) {
-        print(e);
+        print('🔥 $e');
       }
     }
     return instances;
@@ -92,16 +88,27 @@ class FirestoreViewModel {
   void listenCollection<T extends object.Object<T>>({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
-    Future Function(List<T>)? callback,
-    Future Function(List<T>)? deletionCallback,
-    Future Function()? emptyCallback,
+    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int)? deletionCallback,
+    Future Function(int)? emptyCallback,
   }) {
-    final q = query == null ? reference : query(reference);
+    final int? maxActivePages = query != null
+        ? query(reference).getValueOf<int>(reference, maxActivePagesKey, '==')
+        : null;
+
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+
+    final fq = FirestoreQuery(
+      '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+      false,
+    );
+
     _internalCollectionObserver<T>(
-      FireQuery(
-        '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
-        q,
-      ),
+      fq,
+      0,
+      maxActivePages,
       callback,
       deletionCallback,
       emptyCallback,
@@ -112,16 +119,27 @@ class FirestoreViewModel {
   void listenCollectionGroup<T extends object.Object<T>>({
     required Query<Map<String, dynamic>> reference,
     Query<Object?> Function(Query<Map<String, dynamic>>)? query,
-    Future Function(List<T>)? callback,
-    Future Function(List<T>)? deletionCallback,
-    Future Function()? emptyCallback,
+    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int)? deletionCallback,
+    Future Function(int)? emptyCallback,
   }) {
-    final q = query == null ? reference : query(reference);
+    final int? maxActivePages = query != null
+        ? query(reference).getValueOf<int>(reference, maxActivePagesKey, '==')
+        : null;
+
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+
+    final fq = FirestoreQuery(
+      '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+      q,
+      true,
+    );
+
     _internalCollectionObserver<T>(
-      FireQuery(
-        '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
-        q,
-      ),
+      fq,
+      0,
+      maxActivePages,
       callback,
       deletionCallback,
       emptyCallback,
@@ -134,231 +152,152 @@ class FirestoreViewModel {
     Future Function(T)? callback,
     Future Function()? notExistCallback,
   ) {
-    final observation = documentsSub[_docPath(ref)];
-    if (observation != null) {
-      if (observation.isPaused()) {
-        observation.resume();
-      }
-      return;
-    }
+    final observation =
+        (documents[_docPath(ref)] as FirestoreDocumentManager<T>?) ??
+            FirestoreDocumentManager<T>(reference: ref);
 
-    // ignore: cancel_subscriptions
-    StreamSubscription<DocumentSnapshot> s = ref.snapshots().listen(
-      (documentSnapshot) async {
-        if (documentSnapshot.exists && callback != null) {
-          var data = documentSnapshot.data() as Map<String, dynamic>;
-          T instance = object.ObjectLib().instance<T>(T, data['id']);
-          await callback(instance.fromJson(data));
-        } else if (!documentSnapshot.exists && notExistCallback != null) {
-          final snap = await ref.get();
-          if (snap.exists) {
-            if (callback != null) {
-              var data = snap.data() as Map<String, dynamic>;
-              T instance = object.ObjectLib().instance<T>(T, data['id']);
-              await callback(instance.fromJson(data));
-            }
-          } else {
-            await notExistCallback();
-          }
-        }
-      },
-    );
-    documentsSub[_docPath(ref)] = ObservableReaction<T>(s);
+    observation.documentObserver(callback, notExistCallback);
+
+    documents[_docPath(ref)] = observation;
   }
 
   void _internalCollectionObserver<T extends object.Object<T>>(
-    FireQuery fireQuery,
-    Future Function(List<T>)? callback,
-    Future Function(List<T>)? deletionCallback,
-    Future Function()? emptyCallback,
+    FirestoreQuery fireQuery,
+    int page,
+    int? maxActivePages,
+    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int)? deletionCallback,
+    Future Function(int)? emptyCallback,
     DocumentSnapshot? lastDocSnapshot,
   ) {
-    final observation = collectionsSub[_colPath(fireQuery)];
-    if (observation != null) {
-      if (observation.isPaused()) {
-        observation.resume();
-      }
-      return;
+    final observation = (collections[_colPrimaryPath(fireQuery)]
+            as FirestoreCollectionManager<T>?) ??
+        FirestoreCollectionManager<T>(
+          firestoreQuery: fireQuery,
+        );
+
+    observation.maxActivePages = maxActivePages ?? -1;
+
+    if (observation.maxActivePages < 2) {
+      observation.maxActivePages = -1;
     }
 
-    collectionsSub[_colPath(fireQuery)] = ObservableQueryReaction<T>();
+    observation.collectionObserver(
+      page: page,
+      callback: callback,
+      deletionCallback: deletionCallback,
+      emptyCallback: emptyCallback,
+      startAfterDocument: lastDocSnapshot,
+    );
 
-    StreamSubscription<QuerySnapshot<Object?>> s;
-
-    if (lastDocSnapshot == null) {
-      s = fireQuery.query.snapshots().listen((querySnapShot) async {
-        if (querySnapShot.docs.isEmpty) {
-          limited.add(_colPath(fireQuery, indexed: false));
-          await emptyCallback?.call();
-        }
-        if (querySnapShot.docs.isNotEmpty) {
-          collectionsSub[_colPath(fireQuery)]?.lastDocSnapshot =
-              querySnapShot.docs.last;
-        }
-        if (querySnapShot.docChanges.isNotEmpty) {
-          var removed = <T>[];
-          var changed = <T>[];
-          for (var snapshot in querySnapShot.docChanges) {
-            var data = snapshot.doc.data() as Map<String, dynamic>;
-            if (data.containsKey('date') && data['date'] == null) {
-              return;
-            }
-
-            T instance = object.ObjectLib().instance<T>(T, data['id']);
-            instance.fromJson(data);
-
-            if (snapshot.type == DocumentChangeType.removed) {
-              removed.add(instance);
-            } else {
-              changed.add(instance);
-            }
-          }
-
-          if (removed.isNotEmpty) await deletionCallback?.call(removed);
-          if (changed.isNotEmpty) {
-            await callback?.call(changed);
-          }
-        }
-      });
-    } else {
-      s = fireQuery.query
-          .startAfterDocument(lastDocSnapshot)
-          .snapshots()
-          .listen((querySnapShot) async {
-        if (querySnapShot.docs.isEmpty) {
-          limited.add(_colPath(fireQuery, indexed: false));
-          await emptyCallback?.call();
-        }
-        if (querySnapShot.docs.isNotEmpty) {
-          collectionsSub[_colPath(fireQuery)]?.lastDocSnapshot =
-              querySnapShot.docs.last;
-        }
-        if (querySnapShot.docChanges.isNotEmpty) {
-          var removed = <T>[];
-          var changed = <T>[];
-          for (var snapshot in querySnapShot.docChanges) {
-            var data = snapshot.doc.data() as Map<String, dynamic>;
-            if (data.containsKey('date') && data['date'] == null) {
-              return;
-            }
-
-            T instance = object.ObjectLib().instance<T>(T, data['id']);
-            instance.fromJson(data);
-
-            if (snapshot.type == DocumentChangeType.removed) {
-              removed.add(instance);
-            } else {
-              changed.add(instance);
-            }
-          }
-
-          if (removed.isNotEmpty) await deletionCallback?.call(removed);
-          if (changed.isNotEmpty) {
-            await callback?.call(changed);
-          }
-        }
-      });
-    }
-    var o = collectionsSub[_colPath(fireQuery)] as ObservableQueryReaction<T>;
-    o.streamSubscription = s;
-    o.fireQuery = fireQuery;
-    o.callback = callback;
-    o.deletionCallback = deletionCallback;
-    o.emptyCallback = emptyCallback;
+    collections[_colPrimaryPath(fireQuery)] = observation;
   }
 
-  Future<void> increaseLimitReference<T extends object.Object<T>>({
+  Future<void> nextCollectionPage<T extends object.Object<T>>({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
     required Function() noMore,
   }) async {
-    final q = query == null ? reference : query(reference);
-    return _increaseLimitOfCollection<T>(
-      fireQuery: FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _nextCollectionPage<T>(
+      fireQuery: FirestoreQuery(
         '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
         q,
+        false,
       ),
       noMore: noMore,
     );
   }
 
-  Future<void> increaseLimitGroupReference<T extends object.Object<T>>({
+  Future<void> nextCollectionGroupPage<T extends object.Object<T>>({
     required Query reference,
     Query<Object?> Function(Query)? query,
     required Function() noMore,
   }) async {
-    final q = query == null ? reference : query(reference);
-    return _increaseLimitOfCollection<T>(
-      fireQuery: FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _nextCollectionPage<T>(
+      fireQuery: FirestoreQuery(
         '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
         q,
+        true,
       ),
       noMore: noMore,
     );
   }
 
-  Future<void> _increaseLimitOfCollection<T extends object.Object<T>>({
-    required FireQuery fireQuery,
+  Future<void> _nextCollectionPage<T extends object.Object<T>>({
+    required FirestoreQuery fireQuery,
     required Function() noMore,
   }) async {
-    /**
-     * Previous index
-     */
-    final index = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
-    fireQuery.index = index;
-
-    final observation =
-        collectionsSub[_colPath(fireQuery)] as ObservableQueryReaction<T>?;
-    if (observation == null) {
-      return;
-    }
-
-    if (limited.contains(_colPath(fireQuery, indexed: false))) {
-      noMore();
-      return;
-    }
-
-    final lastDocSnapshot = observation.lastDocSnapshot;
-    if (lastDocSnapshot == null) {
-      noMore();
-      return;
-    }
-
-    fireQuery.index = index + 1;
-    pathIndexed[_colPath(fireQuery, indexed: false)] = fireQuery.index;
-    _internalCollectionObserver<T>(
-      fireQuery,
-      observation.callback,
-      observation.deletionCallback,
-      () async {
-        noMore();
-      },
-      lastDocSnapshot,
+    final observation = collections[_colPrimaryPath(fireQuery)]
+        as FirestoreCollectionManager<T>?;
+    observation?.nextCollectionPage(
+      noMore: noMore,
     );
+  }
+
+  Future<void> previousCollectionPage<T extends object.Object<T>>({
+    required CollectionReference reference,
+    Query<Object?> Function(CollectionReference)? query,
+  }) async {
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _previousCollectionPage<T>(
+      fireQuery: FirestoreQuery(
+        '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+        q,
+        false,
+      ),
+    );
+  }
+
+  Future<void> previousCollectionGroupPage<T extends object.Object<T>>({
+    required Query reference,
+    Query<Object?> Function(Query)? query,
+  }) async {
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _previousCollectionPage<T>(
+      fireQuery: FirestoreQuery(
+        '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+        q,
+        true,
+      ),
+    );
+  }
+
+  Future<void> _previousCollectionPage<T extends object.Object<T>>({
+    required FirestoreQuery fireQuery,
+  }) async {
+    final observation = collections[_colPrimaryPath(fireQuery)]
+        as FirestoreCollectionManager<T>?;
+    observation?.previousCollectionPage();
   }
 
   String _docPath(DocumentReference reference) {
     return reference.path;
   }
 
-  String _colPath(FireQuery fireQuery, {bool indexed = true}) {
-    return fireQuery.path +
-        fireQuery.query.parameters.toString() +
-        (indexed ? '${fireQuery.index}' : '');
+  String _colPrimaryPath(FirestoreQuery fireQuery) {
+    return fireQuery.path + fireQuery.query.parameters.toString();
   }
 
   void resumeDocument({required DocumentReference reference}) {
-    documentsSub[_docPath(reference)]?.resume();
+    documents[_docPath(reference)]?.resume();
   }
 
   void resumeCollection({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
   }) {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      false,
     );
     _resumeCollection(fireQuery: fireQuery);
   }
@@ -367,60 +306,60 @@ class FirestoreViewModel {
     required Query reference,
     Query<Object?> Function(Query)? query,
   }) async {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      true,
     );
     _resumeCollection(fireQuery: fireQuery);
   }
 
   void _resumeCollection({
-    required FireQuery fireQuery,
+    required FirestoreQuery fireQuery,
   }) {
-    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
-    for (var i = 0; i <= indexes; i++) {
-      fireQuery.index = i;
-      collectionsSub[_colPath(fireQuery)]?.resume();
-    }
+    collections[_colPrimaryPath(fireQuery)]?.resume();
   }
 
   void resumeAll() async {
     var docIds = [];
-    docIds.addAll(documentsSub.keys.toList());
+    docIds.addAll(documents.keys.toList());
     for (var docPath in docIds) {
-      if (documentsSub.containsKey(docPath)) {
-        documentsSub[docPath]?.resume();
+      if (documents.containsKey(docPath)) {
+        documents[docPath]?.resume();
         if (kDebugMode) {
-          print('Resuming document reference: $docPath');
+          print('🔥 Resuming document reference: $docPath');
         }
       }
     }
 
     var colIds = [];
-    colIds.addAll(collectionsSub.keys.toList());
+    colIds.addAll(collections.keys.toList());
     for (var colPath in colIds) {
-      if (collectionsSub.containsKey(colPath)) {
-        collectionsSub[colPath]?.resume();
+      if (collections.containsKey(colPath)) {
+        collections[colPath]?.resume();
         if (kDebugMode) {
-          print('Resuming collection reference: $colPath');
+          print('🔥 Resuming collection reference: $colPath');
         }
       }
     }
   }
 
   void pauseDocument({required DocumentReference reference}) {
-    documentsSub[_docPath(reference)]?.pause();
+    documents[_docPath(reference)]?.pause();
   }
 
   void pauseCollection({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
   }) {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      false,
     );
     _pauseCollection(fireQuery: fireQuery);
   }
@@ -429,60 +368,60 @@ class FirestoreViewModel {
     required Query reference,
     Query<Object?> Function(Query)? query,
   }) {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      true,
     );
     _pauseCollection(fireQuery: fireQuery);
   }
 
   void _pauseCollection({
-    required FireQuery fireQuery,
+    required FirestoreQuery fireQuery,
   }) {
-    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
-    for (var i = 0; i <= indexes; i++) {
-      fireQuery.index = i;
-      collectionsSub[_colPath(fireQuery)]?.pause();
-    }
+    collections[_colPrimaryPath(fireQuery)]?.pause();
   }
 
   void pauseAll() async {
     var docIds = [];
-    docIds.addAll(documentsSub.keys.toList());
+    docIds.addAll(documents.keys.toList());
     for (var docPath in docIds) {
-      if (documentsSub.containsKey(docPath)) {
-        documentsSub[docPath]?.pause();
+      if (documents.containsKey(docPath)) {
+        documents[docPath]?.pause();
         if (kDebugMode) {
-          print('Pausing document reference: $docPath');
+          print('🔥 Pausing document reference: $docPath');
         }
       }
     }
 
     var colIds = [];
-    colIds.addAll(collectionsSub.keys.toList());
+    colIds.addAll(collections.keys.toList());
     for (var colPath in colIds) {
-      if (collectionsSub.containsKey(colPath)) {
-        collectionsSub[colPath]?.pause();
+      if (collections.containsKey(colPath)) {
+        collections[colPath]?.pause();
         if (kDebugMode) {
-          print('Pausing collection reference: $colPath');
+          print('🔥 Pausing collection reference: $colPath');
         }
       }
     }
   }
 
   Future<void> cancelDocument({required DocumentReference reference}) async {
-    await documentsSub[_docPath(reference)]?.cancel();
+    await documents[_docPath(reference)]?.cancel();
   }
 
   Future<void> cancelCollection({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
   }) async {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      false,
     );
     await _cancelCollection(fireQuery: fireQuery);
   }
@@ -491,59 +430,94 @@ class FirestoreViewModel {
     required Query reference,
     Query<Object?> Function(Query)? query,
   }) async {
-    final q = query == null ? reference : query(reference);
-    final fireQuery = FireQuery(
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    final fireQuery = FirestoreQuery(
       '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
       q,
+      true,
     );
     await _cancelCollection(fireQuery: fireQuery);
   }
 
   Future<void> _cancelCollection({
-    required FireQuery fireQuery,
+    required FirestoreQuery fireQuery,
   }) async {
-    final indexes = pathIndexed[_colPath(fireQuery, indexed: false)] ?? 0;
-    for (var i = 0; i <= indexes; i++) {
-      fireQuery.index = i;
-      await collectionsSub[_colPath(fireQuery)]?.cancel();
-    }
+    await collections[_colPrimaryPath(fireQuery)]?.cancel();
   }
 
   Future<void> cancelAll() async {
     var docIds = [];
-    docIds.addAll(documentsSub.keys.toList());
+    docIds.addAll(documents.keys.toList());
     for (var docPath in docIds) {
-      if (documentsSub.containsKey(docPath)) {
+      if (documents.containsKey(docPath)) {
         try {
-          await documentsSub[docPath]?.cancel();
+          await documents[docPath]?.cancel();
         } catch (e) {
           if (kDebugMode) {
-            print(e);
+            print('🔥 $e');
           }
         }
-        documentsSub.remove(docPath);
+        documents.remove(docPath);
         if (kDebugMode) {
-          print('Cancelling document reference: $docPath');
+          print('🔥 Cancelling document reference: $docPath');
         }
       }
     }
 
     var colIds = [];
-    colIds.addAll(collectionsSub.keys.toList());
+    colIds.addAll(collections.keys.toList());
     for (var colPath in colIds) {
-      if (collectionsSub.containsKey(colPath)) {
+      if (collections.containsKey(colPath)) {
         try {
-          await collectionsSub[colPath]?.cancel();
+          await collections[colPath]?.cancel();
         } catch (e) {
           if (kDebugMode) {
-            print(e);
+            print('🔥 $e');
           }
         }
-        collectionsSub.remove(colPath);
+        collections.remove(colPath);
         if (kDebugMode) {
-          print('Cancelling collection reference: $colPath');
+          print('🔥 Cancelling collection reference: $colPath');
         }
       }
     }
+  }
+
+  List<int> activePagesCollection<T extends object.Object<T>>({
+    required CollectionReference reference,
+    Query<Object?> Function(CollectionReference)? query,
+  }) {
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _activePagesCollection<T>(
+      fireQuery: FirestoreQuery(
+        '${reference.path}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+        q,
+        false,
+      ),
+    );
+  }
+
+  List<int> activePagesCollectionGroup<T extends object.Object<T>>({
+    required Query reference,
+    Query<Object?> Function(Query)? query,
+  }) {
+    final q =
+        query == null ? reference : query(reference).removeLibFields(reference);
+    return _activePagesCollection<T>(
+      fireQuery: FirestoreQuery(
+        '${reference.parameters.values.map((e) => e.toString()).toList().join('_')}_${q.parameters.values.map((e) => e.toString()).toList().join('_')}',
+        q,
+        true,
+      ),
+    );
+  }
+
+  List<int> _activePagesCollection<T extends object.Object<T>>({
+    required FirestoreQuery fireQuery,
+  }) {
+    final observation = collections[_colPrimaryPath(fireQuery)];
+    return observation?.activePages() ?? [];
   }
 }

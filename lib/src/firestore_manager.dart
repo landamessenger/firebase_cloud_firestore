@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'firestore_view_model.dart';
 
 class FirestoreManager extends FirestoreViewModel {
@@ -9,4 +11,12 @@ class FirestoreManager extends FirestoreViewModel {
     _instance ??= FirestoreManager._internal();
     return _instance!;
   }
+
+  GlobalKey<ScaffoldMessengerState>? key;
+
+  void showSnackBar(String message) => key?.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('🔥 $message'),
+        ),
+      );
 }

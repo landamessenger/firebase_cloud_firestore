@@ -18,29 +18,65 @@ extension CollectionExt on Collection {
     Future Function(List<T>)? deletionCallback,
     Future Function()? emptyCallback,
   }) {
-    final map = <String, T>{};
+    final map = <int, Map<String, T>>{};
     (viewModel ?? FirestoreManager()).listenCollection<T>(
       reference: reference,
       query: query,
-      callback: (List<T> instances) async {
+      callback: (List<T> instances, int page) async {
         callback?.call(instances);
         if (results != null) {
-          for (T instance in instances) {
-            map[instance.getId()] = instance;
+          if (map[page] == null) {
+            map[page] = {};
           }
-          results(map);
+          for (T instance in instances) {
+            map[page]?[instance.getId()] = instance;
+          }
+
+          final pages =
+              (viewModel ?? FirestoreManager()).activePagesCollection<T>(
+            reference: reference,
+            query: query,
+          );
+
+          final keys = map.keys.toList();
+          final res = <String, T>{};
+          for (int key in keys) {
+            if (!pages.contains(key)) {
+              map.remove(key);
+            } else {
+              res.addAll(map[key] ?? {});
+            }
+          }
+          results(res);
         }
       },
-      deletionCallback: (List<T> instances) async {
+      deletionCallback: (List<T> instances, int page) async {
         deletionCallback?.call(instances);
         if (results != null) {
           for (T instance in instances) {
-            map.remove(instance.getId());
+            map[page]?.remove(instance.getId());
           }
-          results(map);
+
+          final pages =
+          (viewModel ?? FirestoreManager()).activePagesCollection<T>(
+            reference: reference,
+            query: query,
+          );
+
+          final keys = map.keys.toList();
+          final res = <String, T>{};
+          for (int key in keys) {
+            if (!pages.contains(key)) {
+              // map.remove(key);
+            } else {
+              res.addAll(map[key] ?? {});
+            }
+          }
+          results(res);
         }
       },
-      emptyCallback: () async {
+      emptyCallback: (int page) async {
+        if (page > 0) return;
         emptyCallback?.call();
         if (results != null) {
           results({});
@@ -53,10 +89,19 @@ extension CollectionExt on Collection {
     FirestoreViewModel? viewModel,
     Function()? noMore,
   }) {
-    (viewModel ?? FirestoreManager()).increaseLimitReference<T>(
+    (viewModel ?? FirestoreManager()).nextCollectionPage<T>(
       reference: reference,
       query: query,
       noMore: noMore ?? () {},
+    );
+  }
+
+  void previous<T extends object.Object<T>>({
+    FirestoreViewModel? viewModel,
+  }) {
+    (viewModel ?? FirestoreManager()).previousCollectionPage<T>(
+      reference: reference,
+      query: query,
     );
   }
 

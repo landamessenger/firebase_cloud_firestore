@@ -1,21 +1,21 @@
-
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:object/object.dart' as object;
 
 import 'firestore_query.dart';
 
-class ObservableQueryReaction<T extends object.Object<T>> {
+class ObservableQueryReaction<T> {
   StreamSubscription<QuerySnapshot>? streamSubscription;
 
-  FireQuery? fireQuery;
+  FirestoreQuery? fireQuery;
 
-  Future Function(List<T>)? callback;
+  Future Function(List<T>, int)? callback;
 
-  Future Function(List<T>)? deletionCallback;
+  Future Function(List<T>, int)? deletionCallback;
 
-  Future Function()? emptyCallback;
+  Future Function(int)? emptyCallback;
+
+  DocumentSnapshot? firstDocSnapshot;
 
   DocumentSnapshot? lastDocSnapshot;
 
