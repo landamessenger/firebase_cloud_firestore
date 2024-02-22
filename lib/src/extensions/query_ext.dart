@@ -64,7 +64,7 @@ extension QueryExt on Query<Object?> {
             if (whereParam is List) {
               if (whereParam.first is FieldPath) {
                 final String field =
-                    (whereParam.first as FieldPath).components.first;
+                    (whereParam.first as FieldPath).components.join('.');
                 final String operator = whereParam[1];
                 final dynamic value = whereParam[2];
 
@@ -124,7 +124,7 @@ extension QueryExt on Query<Object?> {
             if (param.isNotEmpty) {
               if (param.first is FieldPath) {
                 final String field =
-                    (param.first as FieldPath).components.first;
+                    (param.first as FieldPath).components.join('.');
                 final bool descending = param.length > 1 ? param[1] : false;
                 recreatedQuery = (recreatedQuery ?? base)
                     .orderBy(field, descending: descending);
