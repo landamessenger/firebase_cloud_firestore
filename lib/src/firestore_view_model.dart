@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_cloud_firestore/src/extensions/query_ext.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_cloud_firestore/src/utils/print.dart';
 import 'package:object/object.dart' as object;
 
 import 'fire/constants.dart';
@@ -27,9 +27,7 @@ class FirestoreViewModel {
         return instance;
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔥 $e');
-      }
+      printDebug(e);
     }
     return null;
   }
@@ -78,9 +76,7 @@ class FirestoreViewModel {
         instances.add(instance);
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔥 $e');
-      }
+      printDebug(e);
     }
     return instances;
   }
@@ -88,7 +84,7 @@ class FirestoreViewModel {
   void listenCollection<T extends object.Object<T>>({
     required CollectionReference reference,
     Query<Object?> Function(CollectionReference)? query,
-    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int, bool)? callback,
     Future Function(List<T>, int)? deletionCallback,
     Future Function(int)? emptyCallback,
   }) {
@@ -119,7 +115,7 @@ class FirestoreViewModel {
   void listenCollectionGroup<T extends object.Object<T>>({
     required Query<Map<String, dynamic>> reference,
     Query<Object?> Function(Query<Map<String, dynamic>>)? query,
-    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int, bool)? callback,
     Future Function(List<T>, int)? deletionCallback,
     Future Function(int)? emptyCallback,
   }) {
@@ -165,7 +161,7 @@ class FirestoreViewModel {
     FirestoreQuery fireQuery,
     int page,
     int? maxActivePages,
-    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int, bool)? callback,
     Future Function(List<T>, int)? deletionCallback,
     Future Function(int)? emptyCallback,
     DocumentSnapshot? lastDocSnapshot,
@@ -328,9 +324,7 @@ class FirestoreViewModel {
     for (var docPath in docIds) {
       if (documents.containsKey(docPath)) {
         documents[docPath]?.resume();
-        if (kDebugMode) {
-          print('🔥 Resuming document reference: $docPath');
-        }
+        printDebug('Resuming document reference: $docPath');
       }
     }
 
@@ -339,9 +333,7 @@ class FirestoreViewModel {
     for (var colPath in colIds) {
       if (collections.containsKey(colPath)) {
         collections[colPath]?.resume();
-        if (kDebugMode) {
-          print('🔥 Resuming collection reference: $colPath');
-        }
+        printDebug('Resuming collection reference: $colPath');
       }
     }
   }
@@ -390,9 +382,7 @@ class FirestoreViewModel {
     for (var docPath in docIds) {
       if (documents.containsKey(docPath)) {
         documents[docPath]?.pause();
-        if (kDebugMode) {
-          print('🔥 Pausing document reference: $docPath');
-        }
+        printDebug('Pausing document reference: $docPath');
       }
     }
 
@@ -401,9 +391,7 @@ class FirestoreViewModel {
     for (var colPath in colIds) {
       if (collections.containsKey(colPath)) {
         collections[colPath]?.pause();
-        if (kDebugMode) {
-          print('🔥 Pausing collection reference: $colPath');
-        }
+        printDebug('Pausing collection reference: $colPath');
       }
     }
   }
@@ -454,14 +442,10 @@ class FirestoreViewModel {
         try {
           await documents[docPath]?.cancel();
         } catch (e) {
-          if (kDebugMode) {
-            print('🔥 $e');
-          }
+          printDebug(e);
         }
         documents.remove(docPath);
-        if (kDebugMode) {
-          print('🔥 Cancelling document reference: $docPath');
-        }
+        printDebug('Cancelling document reference: $docPath');
       }
     }
 
@@ -472,14 +456,10 @@ class FirestoreViewModel {
         try {
           await collections[colPath]?.cancel();
         } catch (e) {
-          if (kDebugMode) {
-            print('🔥 $e');
-          }
+          printDebug(e);
         }
         collections.remove(colPath);
-        if (kDebugMode) {
-          print('🔥 Cancelling collection reference: $colPath');
-        }
+        printDebug('Cancelling collection reference: $colPath');
       }
     }
   }

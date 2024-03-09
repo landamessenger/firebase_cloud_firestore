@@ -1,4 +1,3 @@
-
 import 'package:firebase_cloud_firestore/src/fire/firestore_query.dart';
 
 class FirestoreCollectionEntity {

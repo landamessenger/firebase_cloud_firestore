@@ -9,7 +9,7 @@ class ObservableQueryReaction<T> {
 
   FirestoreQuery? fireQuery;
 
-  Future Function(List<T>, int)? callback;
+  Future Function(List<T>, int, bool)? callback;
 
   Future Function(List<T>, int)? deletionCallback;
 
@@ -18,6 +18,10 @@ class ObservableQueryReaction<T> {
   DocumentSnapshot? firstDocSnapshot;
 
   DocumentSnapshot? lastDocSnapshot;
+
+  bool isEmpty = false;
+
+  bool hasMore = false;
 
   ObservableQueryReaction();
 

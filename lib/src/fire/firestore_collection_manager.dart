@@ -8,8 +8,6 @@ import 'package:object/object.dart' as object;
 
 import 'query_reaction.dart';
 
-const minDelay = Duration(seconds: 4);
-
 class FirestoreCollectionManager<T extends object.Object<T>>
     extends FirestoreCollectionEntity {
   final bool group = false;
@@ -56,7 +54,7 @@ class FirestoreCollectionManager<T extends object.Object<T>>
 
   void collectionObserver({
     int page = 0,
-    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int, bool)? callback,
     Future Function(List<T>, int)? deletionCallback,
     Future Function(int)? emptyCallback,
     Future Function(int)? moreContent,
@@ -125,7 +123,7 @@ class FirestoreCollectionManager<T extends object.Object<T>>
 
   Future<void> _collectionObserverQuery({
     int page = 0,
-    Future Function(List<T>, int)? callback,
+    Future Function(List<T>, int, bool)? callback,
     Future Function(List<T>, int)? deletionCallback,
     Future Function(int)? emptyCallback,
     Future Function(int)? moreContent,
@@ -138,6 +136,8 @@ class FirestoreCollectionManager<T extends object.Object<T>>
       collectionPages[page]?.firstDocSnapshot = querySnapShot.docs.first;
       collectionPages[page]?.lastDocSnapshot = querySnapShot.docs.last;
     }
+
+    collectionPages[page]?.isEmpty = querySnapShot.docs.isEmpty;
 
     /**
      * Get changes/removals
@@ -168,10 +168,26 @@ class FirestoreCollectionManager<T extends object.Object<T>>
     }
 
     /**
+     * Check if there are more docs in next page
+     */
+    final collectionPage = collectionPages[page];
+    if (collectionPage != null) {
+      final query = collectionPage.fireQuery?.query;
+      final lastDocSnapshot = collectionPage.lastDocSnapshot;
+      if (query != null && lastDocSnapshot != null) {
+        final nextDocument =
+            await query.startAfterDocument(lastDocSnapshot).limit(1).get();
+        collectionPages[page]?.hasMore = nextDocument.docs.isNotEmpty;
+      }
+    }
+
+    /**
      * Execute callbacks
      */
     if (removed.isNotEmpty) await deletionCallback?.call(removed, page);
-    if (changed.isNotEmpty) await callback?.call(changed, page);
+    if (changed.isNotEmpty)
+      await callback?.call(
+          changed, page, collectionPages[page]?.hasMore ?? false);
   }
 
   Future<void> nextCollectionPage({
@@ -225,7 +241,7 @@ class FirestoreCollectionManager<T extends object.Object<T>>
         }
         if (kDebugMode) {
           FirestoreManager().showSnackBar(
-              '🔥 page loaded: $index active pages [${activePages()}]');
+              'page loaded: $index active pages [${activePages()}]');
         }
 
         releaseLoader();
@@ -278,7 +294,7 @@ class FirestoreCollectionManager<T extends object.Object<T>>
 
         if (kDebugMode) {
           FirestoreManager().showSnackBar(
-              '🔥 page loaded: $index active pages [${activePages()}]');
+              'page loaded: $index active pages [${activePages()}]');
         }
 
         releaseLoader();
@@ -310,7 +326,9 @@ class FirestoreCollectionManager<T extends object.Object<T>>
   }
 
   void releaseLoader() async {
-    await Future.delayed(minDelay);
+    if (FirestoreManager().lockTime.inSeconds > 0) {
+      await Future.delayed(FirestoreManager().lockTime);
+    }
     loading = false;
   }
 

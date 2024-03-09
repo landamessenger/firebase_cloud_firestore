@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_cloud_firestore/src/fire/constants.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_cloud_firestore/src/utils/print.dart';
 
 extension QueryExt on Query<Object?> {
   Query<Object?> itemsPerPage(int items) {
@@ -40,9 +40,7 @@ extension QueryExt on Query<Object?> {
           try {
             value = valueCheck as T;
           } catch (e) {
-            if (kDebugMode) {
-              print('🔥 $e');
-            }
+            printDebug(e);
           }
         }
         return true;
