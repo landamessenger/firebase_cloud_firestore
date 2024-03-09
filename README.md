@@ -18,7 +18,7 @@ final chatDocument = FirebaseFirestore.instance
   .doc('chat_id')
   .asDocument();
 
-Chat chat = await chatDocument.get();
+Chat? chat = await chatDocument.get();
 ```
 
 ### [Setup](https://github.com/landamessenger/firebase_cloud_firestore/wiki/Setup)
