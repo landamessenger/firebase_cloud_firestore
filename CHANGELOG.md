@@ -1,3 +1,7 @@
+## 4.15.8
+
+* Bump `cloud_firestore` version to `4.15.8`. Added `page` and `hasMore` parameters to collection listeners.
+
 ## 4.15.7
 
 * Added `itemsPerPage` and `maxActivePages` to collection queries.
