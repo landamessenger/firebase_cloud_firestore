@@ -1,3 +1,7 @@
+## 4.17.3
+
+* Bump `cloud_firestore` version to `4.17.3`.
+
 ## 4.15.8
 
 * Bump `cloud_firestore` version to `4.15.8`. Added `page` and `hasMore` parameters to collection listeners.
