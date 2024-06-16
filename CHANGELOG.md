@@ -1,3 +1,7 @@
+## 5.0.1
+
+* Bump `cloud_firestore` version to `5.0.1`.
+
 ## 4.17.3
 
 * Bump `cloud_firestore` version to `4.17.3`.
