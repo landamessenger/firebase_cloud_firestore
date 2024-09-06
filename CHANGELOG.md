@@ -1,3 +1,8 @@
+## 5.4.0
+
+* Bump `object` version to `1.1.1`.
+* Bump `cloud_firestore` version to `5.4.0`.
+
 ## 5.0.1
 
 * Bump `cloud_firestore` version to `5.0.1`.

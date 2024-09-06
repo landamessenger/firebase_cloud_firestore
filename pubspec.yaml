@@ -1,6 +1,6 @@
 name: firebase_cloud_firestore
 description: "Simplify the serialization of objects for cloud_firestore in a Flutter app. It streamlines the process of converting Dart objects into formats compatible with cloud_firestore, making data storage and retrieval smoother and more efficient for developers."
-version: 5.0.1
+version: 5.4.0
 homepage: https://landamessenger.com
 repository: https://github.com/landamessenger/firebase_cloud_firestore
 
@@ -11,8 +11,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cloud_firestore: ^5.0.1                      # android   ios           macos   web   windows
-  object: ^1.0.4                               # android   ios   linux   macos   web   windows
+  cloud_firestore: ^5.4.0                      # android   ios           macos   web   windows
+  object: ^1.1.1                               # android   ios   linux   macos   web   windows
 
 dev_dependencies:
   flutter_test:
