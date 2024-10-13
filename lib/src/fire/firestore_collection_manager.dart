@@ -185,9 +185,13 @@ class FirestoreCollectionManager<T extends object.Object<T>>
      * Execute callbacks
      */
     if (removed.isNotEmpty) await deletionCallback?.call(removed, page);
-    if (changed.isNotEmpty)
+    if (changed.isNotEmpty) {
       await callback?.call(
-          changed, page, collectionPages[page]?.hasMore ?? false);
+        changed,
+        page,
+        collectionPages[page]?.hasMore ?? false,
+      );
+    }
   }
 
   Future<void> nextCollectionPage({

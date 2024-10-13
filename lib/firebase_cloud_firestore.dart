@@ -1,4 +1,4 @@
-library firebase_cloud_firestore;
+library;
 
 export 'package:cloud_firestore/cloud_firestore.dart';
 export 'package:object/object.dart';
