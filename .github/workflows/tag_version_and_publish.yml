@@ -1,12 +1,15 @@
 name: Tag Version and Publish on Push to Master
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - master
 
 jobs:
   tag_version_and_publish:
+    if: github.event.pull_request.merged == true
 
     runs-on: self-hosted
 
@@ -22,20 +25,24 @@ jobs:
       - name: Create tag
         id: create_tag
         run: |
-          # Checks if the tag already exists in the remote repository
+          # Check if the tag already exists in the remote repository
           if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Error: Tag v${{ env.VERSION }} already exists."
-            exit 1
+            echo "Tag v${{ env.VERSION }} already exists."
+          else
+            # Create and push the new tag
+            git tag "v${{ env.VERSION }}"
+            git push origin "v${{ env.VERSION }}"
           fi
 
-          # Check if the version was found
-          if [ -z "${{ env.VERSION }}" ]; then
-            echo "Error: No version found in pubspec.yml"
-            exit 1
-          fi
-
-          git tag "v${{ env.VERSION }}"
-          git push origin "v${{ env.VERSION }}"
+      - name: Create release
+        if: ${{ steps.create_tag.outcome == 'success' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.VERSION }}"
+          name: "${{ github.event.pull_request.title }}"
+          body: "${{ github.event.pull_request.body }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Handle job completion
         if: always()
