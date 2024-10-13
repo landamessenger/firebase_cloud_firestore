@@ -1,5 +1,6 @@
 analyzer:
   errors:
+    invalid_runtime_check_with_js_interop_types: ignore
     dangling_library_doc_comments: ignore
 include: package:flutter_lints/flutter.yaml
 
