@@ -29,7 +29,7 @@ jobs:
 
       - run: flutter pub get
 
-      - run: dart pub publish --dry-run --verbose
+      - run: dart pub publish --dry-run
 
       - name: Handle job completion
         if: always()
